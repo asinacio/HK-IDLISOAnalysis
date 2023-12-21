@@ -1,3 +1,9 @@
+# Ignore all files without extensions ie. binaries
+*
+!*.*
+!*/
+
+# Then add other ignores
 
 *.root
 *~
