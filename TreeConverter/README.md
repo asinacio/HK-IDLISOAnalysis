@@ -14,6 +14,7 @@ _Will aim to replace this with a Makefile once I've figured out how to do that._
 
 To run:
 ```
+
 TreeConverter -i [inputfile.root] -o [outputfile.root] -m [macro.mac]
 ```
 Possible arguments:
@@ -25,3 +26,4 @@ Possible arguments:
 - `-h` : Display the help message
 
 Only `-i` and `-m` are actually required for the converter to run, everything else will take default values.
+

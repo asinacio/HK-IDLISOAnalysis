@@ -1,5 +1,5 @@
 ## S. Jenkins
-## Set up everything to build the event display code
+## Set up everything to build the TreeConverter code
 ##
 ## Some of these paths will be dependent on the structure
 ## you choose to install WCSim in, and therefore may need

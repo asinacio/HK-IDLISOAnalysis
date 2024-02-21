@@ -22,6 +22,7 @@
 #include "TTree.h"
 #include "TMath.h"
 
+
 #include "WCSimRootEvent.hh"
 #include "WCSimRootGeom.hh"
 #include "WCSimRootOptions.hh"
@@ -202,7 +203,7 @@ int main(int argc, char *argv[]){
   pmt_geom->Branch("eff", &eff);         //PMT efficiency
   pmt_geom->Branch("pmtID", &pmtID);     //PMT ID (enum. from 0)
   pmt_geom->Branch("isPMTOn", &isPMTOn);  //PMT status (0 = off, 1 = on) - can add extra status tags if needed
-  
+
 
   //mPMT tree - may need to add additional info here
   TTree *mpmt_geom = new TTree("mpmt_geom", "mpmt_geom");
