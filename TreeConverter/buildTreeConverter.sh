@@ -1,4 +1,9 @@
+## S. Jenkins
 ## Set up everything to build the event display code
+##
+## Some of these paths will be dependent on the structure
+## you choose to install WCSim in, and therefore may need
+## changing to compile correctly
 
 export LD_LIBRARY_PATH=$WCSIM_HOME/WCSim_build/WCSim_col/:$LD_LIBRARY_PATH
 export ANAUP=/user/sjenkins/HyperK/HK-IDLISOAnalysis

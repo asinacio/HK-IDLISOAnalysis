@@ -14,6 +14,7 @@
 
 
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <math.h>
 
@@ -30,7 +31,9 @@
 const std::string TAG = "[TreeConverter]: ";
 const std::string ERR = "[ERROR]: ";
 const std::string WAR = "[WARNING]: ";
+bool verbose = false;
 
+void ParseMacro(std::ifstream &file, double p[]);
 double GetSolidAngle(double r, double R); //simple version, look into what Alie is using
 void SendHelp();
 
@@ -39,11 +42,11 @@ int main(int argc, char *argv[]){
   //Command line arguments
   char *inFileName = NULL;
   char *outFileName = NULL;
+  char *macroFileName = NULL;
   double wavelength = 385.;
-  bool wSet = false;
   bool hybrid = true;
   bool isDiff = true; //currently only want to use diffuser
-  bool verbose = false;
+                      //should make this depend on opAng
 
   //Additional useful constants
   const int nPMTpermPMT = 19;
@@ -51,7 +54,7 @@ int main(int argc, char *argv[]){
   double pmtRadius[2];
 
   int opt;
-  while ((opt = getopt(argc, argv, ":i:o:w:bvh")) != -1){
+  while ((opt = getopt(argc, argv, ":i:o:m:bvh")) != -1){
     switch(opt){
     case 'i':
       inFileName = optarg;
@@ -59,9 +62,8 @@ int main(int argc, char *argv[]){
     case 'o':
       outFileName = optarg;
       break;
-    case 'w':
-      wavelength = std::stod(optarg);
-      wSet = true;
+    case 'm':
+      macroFileName = optarg;
       break;
     case 'b':
       hybrid = false;
@@ -95,6 +97,31 @@ int main(int argc, char *argv[]){
     return -1;
   }
 
+  //Open the macro file, checking it exists, and is a .mac file
+  if(macroFileName == NULL){
+    std::cout << ERR << "No macro file found. Required for source information. Exiting.." << std::endl;
+    return -1;
+  }
+  std::string mString(macroFileName);
+  if (mString.find(".mac") == std::string::npos){
+    std::cout << ERR << "Supplied macro file is not .mac format. Please provide a .mac file. Exiting.." << std::endl;
+    return -1;
+  }
+  std::ifstream macroFile;
+  macroFile.open(macroFileName);
+  if(!macroFile){
+    std::cout << ERR << "Supplied macro file cannot be opened. Exiting.." << std::endl;
+    return -1;
+  }
+  //Read the information required for source tree
+  std::cout << TAG << "Parsing input macro file: " << macroFileName << std::endl;
+  double params[3] = {-1., -1., -1}; //Nphotons, opening angle, wavelength
+  ParseMacro(macroFile, params);
+  int nPhotons = (int)params[0];
+  double opAng = params[1];
+  wavelength = params[2];
+
+
   //Open the output file
   if(outFileName == NULL) {
     std::cout << WAR << "No output filename provided. Falling back to default." << std::endl;
@@ -103,8 +130,6 @@ int main(int argc, char *argv[]){
   TFile *outFile = new TFile(outFileName, "RECREATE");
   std::cout << TAG << outFileName << " opened." << std::endl;
   
-  if(!wSet)
-    std::cout << WAR << "No wavelength provided. Using default 385nm!" << std::endl;
 
   //Access the geometry
   //This only needs one 'event'
@@ -120,6 +145,14 @@ int main(int argc, char *argv[]){
   WCSimRootOptions *options = 0;
   wcsimOptT->SetBranchAddress("wcsimrootoptions", &options);
   wcsimOptT->GetEntry(0);
+
+  double rayff = options->GetRayff();
+  double bsrff = options->GetBsrff();
+  double abwff = options->GetAbwff();
+  double rgcff = options->GetRgcff();
+  double mieff = options->GetMieff();
+  double qeff  = options->GetQeff();
+
   std::cout << TAG << "Options loaded." << std::endl;
   if(verbose) options->Print();
 
@@ -140,9 +173,21 @@ int main(int argc, char *argv[]){
   WCSimRootTrigger* wcsimrootevent;
   WCSimRootTrigger* wcsimrootevent2;
 
-  //Start by saving the PMT geometry
-  double dist, xpos, ypos, zpos, costh, cosths, phis, omega, rad;
-  int pmtID, mpmtID;
+  //Save the tuning parameters
+  TTree *tuning = new TTree("tuning", "tuning");
+  tuning->Branch("rayff", &rayff);
+  tuning->Branch("bsrff", &bsrff);
+  tuning->Branch("abwff", &abwff);
+  tuning->Branch("rgcff", &rgcff);
+  tuning->Branch("mieff", &mieff);
+  tuning->Branch("qeff",  &qeff);
+  tuning->Fill();
+  outFile->cd();
+  tuning->Write();
+
+  //Save the PMT geometry
+  double dist, xpos, ypos, zpos, costh, cosths, phis, omega, rad, eff;
+  int pmtID, mpmtID, isPMTOn;
   //B&L PMT tree
   TTree *pmt_geom = new TTree("pmt_geom", "pmt_geom");
   pmt_geom->Branch("R", &dist);          //Distance to PMT from source
@@ -154,7 +199,10 @@ int main(int argc, char *argv[]){
   pmt_geom->Branch("phis", &phis);       //PMT phi relative to source
   pmt_geom->Branch("omega", &omega);     //Solid angle subtended
   pmt_geom->Branch("radius", &rad);      //PMT radius
+  pmt_geom->Branch("eff", &eff);         //PMT efficiency
   pmt_geom->Branch("pmtID", &pmtID);     //PMT ID (enum. from 0)
+  pmt_geom->Branch("isPMTOn", &isPMTOn);  //PMT status (0 = off, 1 = on) - can add extra status tags if needed
+  
 
   //mPMT tree - may need to add additional info here
   TTree *mpmt_geom = new TTree("mpmt_geom", "mpmt_geom");
@@ -167,7 +215,9 @@ int main(int argc, char *argv[]){
   mpmt_geom->Branch("phis", &phis);       //PMT phi relative to source
   mpmt_geom->Branch("omega", &omega);     //Solid angle subtended
   mpmt_geom->Branch("radius", &rad);      //PMT radius
+  mpmt_geom->Branch("eff", &eff);         //PMT efficiency
   mpmt_geom->Branch("pmtID", &pmtID);     //PMT ID (enum. from 0)
+  mpmt_geom->Branch("isPMTOn", &isPMTOn); //PMT status (0 = off, 1 = on) - can add extra status tags if needed
   mpmt_geom->Branch("mpmtID", &mpmtID);   //PMT ID within module
 
 
@@ -175,8 +225,28 @@ int main(int argc, char *argv[]){
   double vtx[3];
   wcsimT->GetEntry(0);
   wcsimrootevent = wcsimrootsuperevent->GetTrigger(0);
+
   for(int i=0; i<3; i++) vtx[i] = wcsimrootevent->GetVtx(i);
 
+  //Calculate photon group velocity
+  double vg = CalcGroupVelocity(wavelength);
+  vg /= 1E9; //mns-1
+
+  //Fill source tree
+  TTree *source_tree = new TTree("source", "source");
+  source_tree->Branch("vtx_x", &vtx[0]);       //Injector x position
+  source_tree->Branch("vtx_y", &vtx[1]);       //Injector y position
+  source_tree->Branch("vtx_z", &vtx[2]);       //Injector z position
+  source_tree->Branch("lambda", &wavelength);  //Wavelength [nm]
+  source_tree->Branch("vg", &vg);              //Photon group velocity [nms-1]
+  source_tree->Branch("nPhotons", &nPhotons);  //Initial simulated photons
+  source_tree->Branch("opAng", &opAng);        //Injector simulated opening angle
+
+  source_tree->Fill();
+  outFile->cd();
+  source_tree->Write();
+
+  
   //Set up injector local coordinate systems
   //Injection is inward perpendicular to wall
   //May switch these to TVector3s once I'm sure everything works correctly
@@ -282,6 +352,12 @@ int main(int argc, char *argv[]){
       
       rad = pmtType==0 ? pmtRadius[0] : pmtRadius[1];
       omega  = GetSolidAngle(rad, dist);
+
+      //is PMT working - currently all marked as good
+      isPMTOn = 1;
+
+      //PMT efficiency - currently all 100% efficient
+      eff = 1.0;
     
       if(pmtType==0) pmt_geom->Fill();
       if(pmtType==1) mpmt_geom->Fill();
@@ -313,9 +389,6 @@ int main(int argc, char *argv[]){
 
   std::cout << TAG << "Reading hit information." << std::endl;
 
-  //Calculate photon group velocity
-  double vg = CalcGroupVelocity(wavelength);
-  vg /= 1E9; //mns-1
   
   int nCDigiHits, nCDigiHits2, pmtNum;
   double q, photonDist, tof;
@@ -372,6 +445,63 @@ int main(int argc, char *argv[]){
   return 0;
 }
 
+//Function to search the input macro file for source information
+//There's a fair amount of hard-coding here, but as the commands
+//for the injectors in the .mac file _should_ always be the same,
+//it shouldn't cause issues.
+void ParseMacro(std::ifstream &file, double p[]){
+  
+  std::string line;
+  std::string nphot, opAng, wav;
+  bool pFound, aFound, wFound;
+  pFound = aFound = wFound = false;
+  //Number of photons - initial source intensity
+  while(std::getline(file, line)){
+    if (line.find("/mygen/injector_nPhotons") == std::string::npos) continue;
+    else{
+      nphot = line.substr(line.find("nPhotons") + 9);
+      pFound = true;
+      if(verbose) std::cout << TAG << "NPhotons = " << nphot << std::endl;
+      break;
+    }
+  }
+
+  //Opening angle
+  file.clear();
+  file.seekg(0);
+  while(std::getline(file, line)){
+    if (line.find("/mygen/injector_opening_angle") == std::string::npos) continue;
+    else{
+      opAng = line.substr(line.find("opening_angle") + 14);
+      aFound = true;
+      if(verbose) std::cout << TAG << "Opening angle = " << opAng << std::endl;
+      break;
+    }
+  }
+
+  //Wavelength
+  file.clear();
+  file.seekg(0);
+  while(std::getline(file, line)){
+    if (line.find("/mygen/injector_wavelength") == std::string::npos) continue;
+    else{
+      wav = line.substr(line.find("wavelength") + 11);
+      wFound = true;
+      if(verbose) std::cout << TAG << "Wavelength = " << wav << std::endl;
+      break;
+    }
+  }
+  
+  if(!pFound) std::cout << WAR << "Number of photons information missing from .mac file!" << std::endl;
+  else p[0] = std::stod(nphot);
+  if(!aFound) std::cout << WAR << "Opening angle information missing from .mac file!" << std::endl;
+  else p[1] = std::stod(opAng);
+  if(!wFound) std::cout << WAR << "Wavelength information missing from .mac file!" << std::endl;
+  else p[2] = std::stod(wav);  
+
+}
+
+//This is a simple approximation
 double GetSolidAngle(double r, double R){
 
   return TMath::Pi()*r*r/(R*R);
@@ -381,11 +511,11 @@ double GetSolidAngle(double r, double R){
 void SendHelp(){
 
   std::cout << TAG << "Script to read WCSim output and extract PMT hit info.\n"
-	    << "USAGE: TreeConverter -i [input file] -w [wavelength]\n"
+	    << "USAGE: TreeConverter -i [input file] -m [macro file]\n"
 	    << "OPTIONS:\n"
 	    << "-i : Input file\n"
 	    << "-o : Output file\n"
-	    << "-w : Wavelength\n"
+	    << "-m : Macro file from simulation\n"
 	    << "-b : Use B&L PMTs only\n"
 	    << "-v : Print debug info\n"
 	    << "-h : Display this message\n";
