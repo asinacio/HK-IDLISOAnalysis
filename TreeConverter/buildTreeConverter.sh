@@ -6,7 +6,7 @@
 ## changing to compile correctly
 
 export LD_LIBRARY_PATH=$WCSIM_HOME/WCSim_build/WCSim_col/:$LD_LIBRARY_PATH
-export ANAUP=/user/sjenkins/HyperK/HK-IDLISOAnalysis
+export ANAUP=../  #/user/sjenkins/HyperK/HK-IDLISOAnalysis
 
 echo "Building TreeConverter."
 
