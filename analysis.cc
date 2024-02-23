@@ -30,7 +30,7 @@ double CalcChi2( std::vector<double> wnpe, std::vector<double> d, double intensi
 
 }
 
-int main(){
+void runFit(){
 
   cout << "\n";
   cout << "###########################" << endl;
@@ -52,18 +52,8 @@ int main(){
   cout << "Reading file " << inFileName << "..." << endl;
   // inFile->ls(); // print file structure, for debugging
 
-  // Loading information about the laser and fibre
-  cout << "Loading calibration source information..." << endl;
-  // NOTE: currently hardcoding this, but would be good to have this as variables in the input file
-  double sourcePosx = 0.0;
-  double sourcePosy = 0.0;
-  double sourcePosz = 0.0;
-  double sourceWl = 0.0;
-  double sourceI = 0.0;
-
-  // Loading PMT information
-  cout << "Loading PMT data..." << endl;
   // Loading the ttrees
+  TTree *tsource = (TTree*)inFile->Get("source");
   TTree *tpmt_geom = (TTree*)inFile->Get("pmt_geom");
   TTree *tmpmt_geom = (TTree*)inFile->Get("mpmt_geom");
   TTree *tpmt_hits = (TTree*)inFile->Get("pmt_hits");
@@ -71,18 +61,34 @@ int main(){
 
   // tpmt_hits->Print(); // print ttree structure, for debugging
 
-  double dist, xpos, ypos, zpos, costh, cosths, phis, omega, rad;
-  int pmtID, mpmtID;
-  tpmt_geom->SetBranchAddress("R", &dist);          //Distance to PMT from source
-  tpmt_geom->SetBranchAddress("x", &xpos);          //PMT x coordinate
-  tpmt_geom->SetBranchAddress("y", &ypos);          //PMT y coordinate
-  tpmt_geom->SetBranchAddress("z", &zpos);          //PMT z coordinate
-  tpmt_geom->SetBranchAddress("costh", &costh);     //Photon angle relative to PMT
-  tpmt_geom->SetBranchAddress("cosths", &cosths);   //PMT theta relative to source
-  tpmt_geom->SetBranchAddress("phis", &phis);       //PMT phi relative to source
-  tpmt_geom->SetBranchAddress("omega", &omega);     //Solid angle subtended
-  tpmt_geom->SetBranchAddress("radius", &rad);      //PMT radius
-  tpmt_geom->SetBranchAddress("pmtID", &pmtID);     //PMT ID (enum. from 0)
+  // Loading information about the laser and fibre
+  cout << "Loading calibration source information..." << endl;
+  // NOTE: currently hardcoding this, but would be good to have this as variables in the input file
+  double sourcePosx, sourcePosy, sourcePosz, sourceWl, sourceI, sourceAng, groupVel;
+  tsource->SetBranchAddress("vtx_x", &sourcePosx);  // Source x coordinate
+  tsource->SetBranchAddress("vtx_y", &sourcePosy);  // Source y coordinate
+  tsource->SetBranchAddress("vtx_z", &sourcePosz);  // Source z coordinate
+  tsource->SetBranchAddress("lambda", &sourceWl);   // Source wavelength [nm]
+  tsource->SetBranchAddress("nPhotons", &sourceI);  // Source intensity, number of photons simulated
+  tsource->SetBranchAddress("opAng", &sourceAng);   // Source opening angle
+  tsource->SetBranchAddress("vg", &groupVel);       // Photon group velocity [nm s-1]
+
+  // Loading PMT information
+  cout << "Loading PMT data..." << endl;
+  double dist, xpos, ypos, zpos, costh, cosths, phis, omega, rad, eff;
+  int pmtID, mpmtID, isPMTOn;
+  tpmt_geom->SetBranchAddress("R", &dist);          // Distance to PMT from source
+  tpmt_geom->SetBranchAddress("x", &xpos);          // PMT x coordinate
+  tpmt_geom->SetBranchAddress("y", &ypos);          // PMT y coordinate
+  tpmt_geom->SetBranchAddress("z", &zpos);          // PMT z coordinate
+  tpmt_geom->SetBranchAddress("costh", &costh);     // Photon angle relative to PMT
+  tpmt_geom->SetBranchAddress("cosths", &cosths);   // PMT theta relative to source
+  tpmt_geom->SetBranchAddress("phis", &phis);       // PMT phi relative to source
+  tpmt_geom->SetBranchAddress("omega", &omega);     // Solid angle subtended
+  tpmt_geom->SetBranchAddress("radius", &rad);      // PMT radius
+  tpmt_geom->SetBranchAddress("eff", &eff);         // PMT efficiency
+  tpmt_geom->SetBranchAddress("pmtID", &pmtID);     // PMT ID (enum. from 0)
+  tpmt_geom->SetBranchAddress("isPMTOn", &isPMTOn); // PMT status (0 = off, 1 = on) - can add extra status tags if needed
 
   double nHits, nPE, time_tofcorr, time;
   tpmt_hits->SetBranchAddress("nHits", &nHits);
@@ -117,17 +123,16 @@ int main(){
   // -- Scattering: determined by looking at regions away from the beamspot, where only scattered light could have arrived
 
   // Simple fit to start with: only fit attenuations
-  std::vector<double> wNPE;
-  std::vector<double> d;
+  std::vector<double> wNPE; // NPE corrected by solid angle
+  std::vector<double> d; // Distance source-PMT
   for(int i = 0; i<tpmt_hits->GetEntries(); i++){
     tpmt_hits->GetEntry(i);
     double npe = nPE;
     tpmt_geom->GetEntry(i);
     npe = npe / omega;
-    double distance = sqrt((x-sourcePosx)*(x-sourcePosx) + (y-sourcePosy)*(y-sourcePosy) + (z-sourcePosz)*(z-sourcePosz) );
 
     wNPE.push_back(npe);
-    d.push_back(distance);
+    d.push_back(dist);
   }
 
   // Basic Chi2 fit
@@ -148,5 +153,4 @@ int main(){
   
   inFile->Close();
 
-  return 0;
 }
