@@ -63,7 +63,6 @@ void runFit(){
 
   // Loading information about the laser and fibre
   cout << "Loading calibration source information..." << endl;
-  // NOTE: currently hardcoding this, but would be good to have this as variables in the input file
   double sourcePosx, sourcePosy, sourcePosz, sourceWl, sourceI, sourceAng, groupVel;
   tsource->SetBranchAddress("vtx_x", &sourcePosx);  // Source x coordinate
   tsource->SetBranchAddress("vtx_y", &sourcePosy);  // Source y coordinate
