@@ -89,7 +89,7 @@ int main(int argc, char *argv[]){
 
   //Open the input file, checking it exists
   if(inFileName == NULL){
-    std::cout << ERR << "No input file found. Exiting.." << std::endl;
+    std::cout << ERR << "No input file found. Pass -h for help. Exiting.." << std::endl;
     return -1;
   }
   TFile *inFile = new TFile(inFileName, "READ");
@@ -138,6 +138,8 @@ int main(int argc, char *argv[]){
   WCSimRootGeom* geom = new WCSimRootGeom();
   wcsimGeoT->SetBranchAddress("wcsimrootgeom", &geom);
   wcsimGeoT->GetEntry(0);
+  if(verbose) geom->Print();
+
   std::cout << TAG << "Geometry loaded." << std::endl;
 
   //Access the options
