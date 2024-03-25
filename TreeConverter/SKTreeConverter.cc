@@ -1,6 +1,6 @@
 //********************************************
-// Script to extract information from WCSim
-// root files and put them into library-
+// Modified script to extract information from
+// SK root files and put them into library-
 // independent trees.
 //
 // Partially based on code from Ka Ming's
@@ -15,6 +15,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <vector>
 #include <math.h>
 
@@ -23,19 +24,16 @@
 #include "TMath.h"
 
 
-#include "WCSimRootEvent.hh"
-#include "WCSimRootGeom.hh"
-#include "WCSimRootOptions.hh"
-
 #include "CalcGroupVelocity.h"
+#include "SKInjectorLocations.h"
 
 const std::string TAG = "[TreeConverter]: ";
 const std::string ERR = "[ERROR]: ";
 const std::string WAR = "[WARNING]: ";
 bool verbose = false;
 
-void ParseMacro(std::ifstream &file, double p[]);
 double GetSolidAngle(double r, double R); //simple version, look into what Alie is using
+void ReadPMTGeometry(std::ifstream &posFile, std::ifstream &oriFile, std::vector< std::vector<double> > &posVec, std::vector< std::vector<double> > &oriVec);
 void SendHelp();
 
 int main(int argc, char *argv[]){
@@ -43,19 +41,20 @@ int main(int argc, char *argv[]){
   //Command line arguments
   char *inFileName = NULL;
   char *outFileName = NULL;
-  char *macroFileName = NULL;
-  double wavelength = 385.;
-  bool hybrid = true;
-  bool isDiff = true; //currently only want to use diffuser
-                      //should make this depend on opAng
+  double wavelength = 435.;
+  double opAng = 0.;
+  bool isDiff = false;
+  bool isCol = false;
+  bool isData = true;//Set to true as it should always be data for now
+                     //If I end up having to integrate this with SKDetSim
+                     //we can alter this.
+  std::string injector = " ";
 
-  //Additional useful constants
-  const int nPMTpermPMT = 19;
-  const int nPMTTypes = 2;
-  double pmtRadius[2];
+  double pmtRadius;
+
 
   int opt;
-  while ((opt = getopt(argc, argv, ":i:o:m:bvh")) != -1){
+  while ((opt = getopt(argc, argv, ":i:o:b:dcrvh")) != -1){
     switch(opt){
     case 'i':
       inFileName = optarg;
@@ -63,11 +62,19 @@ int main(int argc, char *argv[]){
     case 'o':
       outFileName = optarg;
       break;
-    case 'm':
-      macroFileName = optarg;
-      break;
     case 'b':
-      hybrid = false;
+      injector = optarg;
+      break;
+    case 'd':
+      isDiff = true;
+      opAng = 40.;
+      break;
+    case 'c':
+      isCol = true;
+      opAng = 4.;
+      break;
+    case 'r':
+      isData = true;
       break;
     case 'v':
       verbose = true;
@@ -98,31 +105,35 @@ int main(int argc, char *argv[]){
     return -1;
   }
 
-  //Open the macro file, checking it exists, and is a .mac file
-  if(macroFileName == NULL){
-    std::cout << ERR << "No macro file found. Required for source information. Exiting.." << std::endl;
+  //Check an injector flag has been passed, this is required
+  if(injector == " "){
+    std::cout << ERR << "No injector position passed. This is required. Pass -h for help. Exiting.." << std::endl;
     return -1;
   }
-  std::string mString(macroFileName);
-  if (mString.find(".mac") == std::string::npos){
-    std::cout << ERR << "Supplied macro file is not .mac format. Please provide a .mac file. Exiting.." << std::endl;
-    return -1;
-  }
-  std::ifstream macroFile;
-  macroFile.open(macroFileName);
-  if(!macroFile){
-    std::cout << ERR << "Supplied macro file cannot be opened. Exiting.." << std::endl;
-    return -1;
-  }
-  //Read the information required for source tree
-  std::cout << TAG << "Parsing input macro file: " << macroFileName << std::endl;
-  double params[3] = {-1., -1., -1}; //Nphotons, opening angle, wavelength
-  ParseMacro(macroFile, params);
-  int nPhotons = (int)params[0];
-  double opAng = params[1];
-  wavelength = params[2];
 
+  //Check optic flags
+  if(isDiff == false && isCol == false){
+    std::cout << ERR << "No optic information passed. Pass -h for help. Exiting.." << std::endl;
+    return -1;
+  }
+  else if(isDiff == true && isCol == true){
+    std::cout << ERR << "Cannot run with both diffuser and collimator flags, only one should be passed. Exiting.." << std::endl;
+    return -1;
+  }
 
+  //Open the PMT position/orientation tables and read those in
+  std::vector< std::vector<double> > posVec, oriVec;
+  if(isData){
+    std::ifstream posFile, oriFile;
+    posFile.open("./tables/pmt_position_cyl.dat");
+    oriFile.open("./tables/pmt_orientation_cyl.dat");
+
+    ReadPMTGeometry(posFile, oriFile, posVec, oriVec);
+
+    posFile.close();
+    oriFile.close();
+  }
+  
   //Open the output file
   if(outFileName == NULL) {
     std::cout << WAR << "No output filename provided. Falling back to default." << std::endl;
@@ -130,68 +141,58 @@ int main(int argc, char *argv[]){
   }
   TFile *outFile = new TFile(outFileName, "RECREATE");
   std::cout << TAG << outFileName << " opened." << std::endl;
+  //Finished flag checks and file inputs
+
+
   
 
-  //Access the geometry
-  //This only needs one 'event'
-  TTree *wcsimGeoT = (TTree*)inFile->Get("wcsimGeoT");
-  WCSimRootGeom* geom = new WCSimRootGeom();
-  wcsimGeoT->SetBranchAddress("wcsimrootgeom", &geom);
-  wcsimGeoT->GetEntry(0);
-  if(verbose) geom->Print();
+  //Finally, access the event tree
+  TTree *inTree = (TTree*)inFile->Get("tqtree");
+  if(verbose) inTree->Print();
 
-  std::cout << TAG << "Geometry loaded." << std::endl;
+  Int_t year = 0;
+  Int_t month = 0;
+  Int_t day = 0;
+  Int_t hour = 0;
+  Int_t minute = 0;
+  Int_t second = 0;
+  Int_t run = 0;
+  Int_t subrun = 0;
+  Int_t nev = 0;
+  std::vector<int> *ihit_vec = 0;
+  std::vector<int> *cable_vec = 0;
+  std::vector<float> *charge_vec = 0;
+  std::vector<double> *time_vec = 0;
+  std::vector<double> *pmtx_vec = 0;
+  std::vector<double> *pmty_vec = 0;
+  std::vector<double> *pmtz_vec = 0;
 
-  //Access the options
-  //This only needs one 'event'
-  TTree *wcsimOptT = (TTree*)inFile->Get("wcsimRootOptionsT");
-  WCSimRootOptions *options = 0;
-  wcsimOptT->SetBranchAddress("wcsimrootoptions", &options);
-  wcsimOptT->GetEntry(0);
+  inTree->SetBranchAddress("year", &year);
+  inTree->SetBranchAddress("month", &month);
+  inTree->SetBranchAddress("day", &day);
+  inTree->SetBranchAddress("hour", &hour);
+  inTree->SetBranchAddress("minute", &minute);
+  inTree->SetBranchAddress("second", &second);
+  inTree->SetBranchAddress("run", &run);
+  inTree->SetBranchAddress("subrun", &subrun);
+  inTree->SetBranchAddress("nev", &nev);
+  inTree->SetBranchAddress("ihit_vec", &ihit_vec);
+  inTree->SetBranchAddress("cable_vec", &cable_vec);
+  inTree->SetBranchAddress("charge_vec", &charge_vec);
+  inTree->SetBranchAddress("time_vec", &time_vec);
+  inTree->SetBranchAddress("pmtx_vec", &pmtx_vec);
+  inTree->SetBranchAddress("pmty_vec", &pmty_vec);
+  inTree->SetBranchAddress("pmtz_vec", &pmtz_vec);
 
-  double rayff = options->GetRayff();
-  double bsrff = options->GetBsrff();
-  double abwff = options->GetAbwff();
-  double rgcff = options->GetRgcff();
-  double mieff = options->GetMieff();
-  double qeff  = options->GetQeff();
+  //Ignore monitor info for now
 
-  std::cout << TAG << "Options loaded." << std::endl;
-  if(verbose) options->Print();
+  std::cout << TAG << "Tree loaded." << std::endl;
 
-  //Finally, access the event trees
-  //Need two of these, one for mPMTs
-  TTree *wcsimT = (TTree*)inFile->Get("wcsimT");
-  WCSimRootEvent* wcsimrootsuperevent  = new WCSimRootEvent();
-  WCSimRootEvent* wcsimrootsuperevent2 = new WCSimRootEvent();
-
-  wcsimT->SetBranchAddress("wcsimrootevent", &wcsimrootsuperevent);
-  wcsimT->GetBranch("wcsimrootevent")->SetAutoDelete(kTRUE);
-  if(hybrid){
-    wcsimT->SetBranchAddress("wcsimrootevent2", &wcsimrootsuperevent2);
-    wcsimT->GetBranch("wcsimrootevent2")->SetAutoDelete(kTRUE);
-  }
-  std::cout << TAG << "Trees loaded." << std::endl;
-
-  WCSimRootTrigger* wcsimrootevent;
-  WCSimRootTrigger* wcsimrootevent2;
-
-  //Save the tuning parameters
-  TTree *tuning = new TTree("tuning", "tuning");
-  tuning->Branch("rayff", &rayff);
-  tuning->Branch("bsrff", &bsrff);
-  tuning->Branch("abwff", &abwff);
-  tuning->Branch("rgcff", &rgcff);
-  tuning->Branch("mieff", &mieff);
-  tuning->Branch("qeff",  &qeff);
-  tuning->Fill();
-  outFile->cd();
-  tuning->Write();
 
   //Save the PMT geometry
   double dist, xpos, ypos, zpos, costh, cosths, phis, omega, rad, eff;
-  int pmtID, mpmtID, isPMTOn;
-  //B&L PMT tree
+  int pmtID, isPMTOn;
+  //PMT tree - this stores positional information for ALL PMTs, not just those with hits
   TTree *pmt_geom = new TTree("pmt_geom", "pmt_geom");
   pmt_geom->Branch("R", &dist);          //Distance to PMT from source
   pmt_geom->Branch("x", &xpos);          //PMT x coordinate
@@ -207,29 +208,11 @@ int main(int argc, char *argv[]){
   pmt_geom->Branch("isPMTOn", &isPMTOn);  //PMT status (0 = off, 1 = on) - can add extra status tags if needed
 
 
-  //mPMT tree - may need to add additional info here
-  TTree *mpmt_geom = new TTree("mpmt_geom", "mpmt_geom");
-  mpmt_geom->Branch("R", &dist);          //Distance to PMT from source
-  mpmt_geom->Branch("x", &xpos);          //PMT x coordinate
-  mpmt_geom->Branch("y", &ypos);          //PMT y coordinate
-  mpmt_geom->Branch("z", &zpos);          //PMT z coordinate
-  mpmt_geom->Branch("costh", &costh);     //Photon angle relative to PMT
-  mpmt_geom->Branch("cosths", &cosths);   //PMT theta relative to source
-  mpmt_geom->Branch("phis", &phis);       //PMT phi relative to source
-  mpmt_geom->Branch("omega", &omega);     //Solid angle subtended
-  mpmt_geom->Branch("radius", &rad);      //PMT radius
-  mpmt_geom->Branch("eff", &eff);         //PMT efficiency
-  mpmt_geom->Branch("pmtID", &pmtID);     //PMT ID (enum. from 0)
-  mpmt_geom->Branch("isPMTOn", &isPMTOn); //PMT status (0 = off, 1 = on) - can add extra status tags if needed
-  mpmt_geom->Branch("mpmtID", &mpmtID);   //PMT ID within module
-
 
   //Injector position
-  double vtx[3];
-  wcsimT->GetEntry(0);
-  wcsimrootevent = wcsimrootsuperevent->GetTrigger(0);
-
-  for(int i=0; i<3; i++) vtx[i] = wcsimrootevent->GetVtx(i);
+  std::vector<double> vtx(3);
+  //Get the position via the injector tag
+  vtx = GetInjectorLocation(injector);
 
   //Calculate photon group velocity
   double vg = CalcGroupVelocity(wavelength);
@@ -242,8 +225,8 @@ int main(int argc, char *argv[]){
   source_tree->Branch("vtx_z", &vtx[2]);       //Injector z position
   source_tree->Branch("lambda", &wavelength);  //Wavelength [nm]
   source_tree->Branch("vg", &vg);              //Photon group velocity [nms-1]
-  source_tree->Branch("nPhotons", &nPhotons);  //Initial simulated photons
-  source_tree->Branch("opAng", &opAng);        //Injector simulated opening angle
+  //source_tree->Branch("nPhotons", &nPhotons);  //Initial simulated photons
+  source_tree->Branch("opAng", &opAng);        //Injector opening angle
 
   source_tree->Fill();
   outFile->cd();
@@ -256,7 +239,7 @@ int main(int argc, char *argv[]){
   double vSourceDir[3];
   double vSourceXAxisLocal[3], vSourceYAxisLocal[3];
   double norm;
-  double cut = geom->GetWCCylLength()/2*0.9;
+  double cut = 1795;//cut for top and bottom caps
   //Barrel injectors
   if(abs(vtx[2]) < cut){
     vSourceDir[0] = vtx[0];
@@ -302,80 +285,69 @@ int main(int argc, char *argv[]){
 
   std::cout << TAG << "Reading PMT information." << std::endl;
 
-  int nPMTs_BL = geom->GetWCNumPMT();
-  int nPMTs_m  = 0;
-  if (hybrid) nPMTs_m = geom->GetWCNumPMT(true);
+  int nPMTs = posVec.size();
 
   if(verbose){
-    printf("%s%i B&L PMTs.\n", TAG.c_str(), nPMTs_BL);
-    printf("%s%i mPMTs.\n", TAG.c_str(), nPMTs_m);
+    printf("%s%i B&L PMTs.\n", TAG.c_str(), nPMTs);
   }
 
-  pmtRadius[0] = geom->GetWCPMTRadius();
-  pmtRadius[1] = geom->GetWCPMTRadius(true);
+  pmtRadius = 50.; //Hardcode, probably need a more precise value
   
   double PMTpos[3], vOrient[3], vDir[3];
   double vecNorm, orientNorm, localx, localy;
   //Loop over pmts
-  int nPMTs;
-  for (int pmtType = 0; pmtType < nPMTTypes; pmtType++){
-
-    nPMTs = pmtType == 0 ? nPMTs_BL : nPMTs_m;
-    for (int i=0; i<nPMTs; i++){
-      
-      WCSimRootPMT pmt;
-      pmt = geom->GetPMT(i, pmtType==1);
-      pmtID = i;
-      mpmtID = pmtType==0 ? 0 : pmtID%nPMTpermPMT;
-
-      for(int j=0; j<3; j++){
-	PMTpos[j]  = pmt.GetPosition(j);
-	vOrient[j] = pmt.GetOrientation(j); //direction PMT faces
-	vDir[j] = PMTpos[j] - vtx[j]; //vector from inj to PMT
-      }
-	
-      xpos = PMTpos[0]; //For tree outputs
-      ypos = PMTpos[1];
-      zpos = PMTpos[2];
-
-      //Calculate angles etc.
-      vecNorm = sqrt(vDir[0]*vDir[0] + vDir[1]*vDir[1] + vDir[2]*vDir[2]);
-      orientNorm = sqrt(vOrient[0]*vOrient[0] + vOrient[1]*vOrient[1] + vOrient[2]*vOrient[2]);
-      for(int j=0; j<3; j++){
-	vDir[j] /= vecNorm;
-	vOrient[j] /= orientNorm;
-      }
-      dist = vecNorm;
-
-      costh  = -1*(vDir[0]*vOrient[0] + vDir[1]*vOrient[1] + vDir[2]*vOrient[2]);
-      cosths = vDir[0]*vSourceDir[0] + vDir[1]*vSourceDir[1] + vDir[2]*vSourceDir[2];
-      localx = vDir[0]*vSourceXAxisLocal[0] + vDir[1]*vSourceXAxisLocal[1] + vDir[2]*vSourceXAxisLocal[2];
-      localy = vDir[0]*vSourceYAxisLocal[1] + vDir[1]*vSourceYAxisLocal[1] + vDir[2]*vSourceYAxisLocal[2];
-      phis   = atan2(localy, localx);
-      
-      rad = pmtType==0 ? pmtRadius[0] : pmtRadius[1];
-      omega  = GetSolidAngle(rad, dist);
-
-      //is PMT working - currently all marked as good
-      isPMTOn = 1;
-
-      //PMT efficiency - currently all 100% efficient
-      eff = 1.0;
+  
+  for (int i=0; i<nPMTs; i++){
     
-      if(pmtType==0) pmt_geom->Fill();
-      if(pmtType==1) mpmt_geom->Fill();
-    }//End of loop over individual PMTs
-  }//End of loop over PMT types
+    pmtID = i+1; //PMT IDs start from 1
+    
+    for(int j=0; j<3; j++){
+      PMTpos[j]  = posVec.at(i).at(j);
+      vOrient[j] = oriVec.at(i).at(j); //direction PMT faces
+      vDir[j] = PMTpos[j] - vtx[j]; //vector from inj to PMT
+    }
+	
+    xpos = PMTpos[0]; //For tree outputs
+    ypos = PMTpos[1];
+    zpos = PMTpos[2];
+
+    //Calculate angles etc.
+    vecNorm = sqrt(vDir[0]*vDir[0] + vDir[1]*vDir[1] + vDir[2]*vDir[2]);
+    orientNorm = sqrt(vOrient[0]*vOrient[0] + vOrient[1]*vOrient[1] + vOrient[2]*vOrient[2]);
+    for(int j=0; j<3; j++){
+      vDir[j] /= vecNorm;
+      vOrient[j] /= orientNorm;
+    }
+    dist = vecNorm;
+
+    costh  = -1*(vDir[0]*vOrient[0] + vDir[1]*vOrient[1] + vDir[2]*vOrient[2]);
+    cosths = vDir[0]*vSourceDir[0] + vDir[1]*vSourceDir[1] + vDir[2]*vSourceDir[2];
+    localx = vDir[0]*vSourceXAxisLocal[0] + vDir[1]*vSourceXAxisLocal[1] + vDir[2]*vSourceXAxisLocal[2];
+    localy = vDir[0]*vSourceYAxisLocal[1] + vDir[1]*vSourceYAxisLocal[1] + vDir[2]*vSourceYAxisLocal[2];
+    phis   = atan2(localy, localx);
+      
+    rad = pmtRadius;
+    omega  = GetSolidAngle(rad, dist);
+
+    //is PMT working - currently all marked as good
+    isPMTOn = 1;
+
+    //PMT efficiency - currently all 100% efficient
+    eff = 1.0;
+    
+    pmt_geom->Fill();
+    
+  }//End of loop over individual PMTs
 
   outFile->cd();
   pmt_geom->Write();
-  if(hybrid) mpmt_geom->Write();
 
   
   //Now we can access the actual hit information
   //Will probably want to add additional info here,
   //but start with these for now.
-  double nHits, nPE, time_tofcorr, time;
+  int nHits;
+  double nPE, time_tofcorr, time;
   TTree *pmt_hits = new TTree("pmt_hits", "pmt_hits");
   pmt_hits->Branch("nHits", &nHits);
   pmt_hits->Branch("nPE", &nPE);
@@ -383,63 +355,43 @@ int main(int argc, char *argv[]){
   pmt_hits->Branch("time_tofcorr", &time_tofcorr);
   pmt_hits->Branch("pmtID", &pmtID);
   
-  TTree *mpmt_hits = new TTree("mpmt_hits", "mpmt_hits");
-  mpmt_hits->Branch("nHits", &nHits);
-  mpmt_hits->Branch("nPE", &nPE);
-  mpmt_hits->Branch("time", &time);
-  mpmt_hits->Branch("time_tofcorr", &time_tofcorr);
-  mpmt_hits->Branch("pmtID", &pmtID);
-
   std::cout << TAG << "Reading hit information." << std::endl;
 
   
-  int nCDigiHits, nCDigiHits2, pmtNum;
+  int pmtNum;
   double q, photonDist, tof;
   double photonDir[3];
   //Loop over events
-  for(int ev=0; ev<wcsimT->GetEntries(); ev++){
+  for(int ev=0; ev<inTree->GetEntries(); ev++){
 
-    wcsimT->GetEvent(ev);
-    wcsimrootevent = wcsimrootsuperevent->GetTrigger(0);
-    if(hybrid) wcsimrootevent2 = wcsimrootsuperevent2->GetTrigger(0);
+    inTree->GetEvent(ev);
+    nHits = ihit_vec->size();
 
-    nCDigiHits  = wcsimrootevent->GetNcherenkovdigihits();
-    nCDigiHits2 = hybrid ? wcsimrootevent2->GetNcherenkovdigihits() : 0;
+    for (int ihit=0; ihit<nHits; ihit++){
 
-    //Loop over PMT types
-    for (int pmtType=0; pmtType < nPMTTypes; pmtType++){
-      nHits = (pmtType==0) ? nCDigiHits : nCDigiHits2;
-
-      for (int ihit=0; ihit<nHits; ihit++){
-	WCSimRootCherenkovDigiHit *hit;
-	if(pmtType==0) hit = (WCSimRootCherenkovDigiHit*)wcsimrootevent->GetCherenkovDigiHits()->At(ihit);
-	else           hit = (WCSimRootCherenkovDigiHit*)wcsimrootevent2->GetCherenkovDigiHits()->At(ihit);
-
-	q = hit->GetQ();
-	time = hit->GetT();//digitised hit time
-	pmtNum = hit->GetTubeId(); //1 higher
-	pmtID = pmtNum-1;
+      q = charge_vec->at(ihit);
+      time = time_vec->at(ihit);
+      pmtNum = cable_vec->at(ihit);
+      pmtID = pmtNum; //Don't need the offset here
 	
-	WCSimRootPMT pmt = geom->GetPMT(pmtNum-1, pmtType==1);
-	for(int i=0; i<3; i++) 
-	  photonDir[i] = pmt.GetPosition(i) - vtx[i];
+      for(int i=0; i<3; i++) 
+	photonDir[i] = posVec.at(pmtID-1).at(i) - vtx[i];
 
-	photonDist = sqrt(photonDir[0]*photonDir[0] + photonDir[1]*photonDir[1] + photonDir[2]*photonDir[2]);
-	photonDist *= 1E-2; //Convert to m
-	tof = photonDist/vg;
-	time_tofcorr = time - tof;
+      photonDist = sqrt(photonDir[0]*photonDir[0] + photonDir[1]*photonDir[1] + photonDir[2]*photonDir[2]);
+      photonDist *= 1E-2; //Convert to m
+      tof = photonDist/vg;
+      time_tofcorr = time - tof;
 	
-	nPE = q;
+      nPE = q;
 
-	if(pmtType==0) pmt_hits->Fill();
-	if(pmtType==1) mpmt_hits->Fill();
-      }
+      pmt_hits->Fill();
+
     }
+    
   }
 
   outFile->cd();
   pmt_hits->Write();
-  if (hybrid) mpmt_hits->Write();
 
   outFile->Close();
 
@@ -448,61 +400,56 @@ int main(int argc, char *argv[]){
   return 0;
 }
 
-//Function to search the input macro file for source information
-//There's a fair amount of hard-coding here, but as the commands
-//for the injectors in the .mac file _should_ always be the same,
-//it shouldn't cause issues.
-void ParseMacro(std::ifstream &file, double p[]){
-  
+//Put the real PMT geometry into arrays to be accessed in main
+void ReadPMTGeometry(std::ifstream &posFile, std::ifstream &oriFile, std::vector< std::vector<double> > &posVec, std::vector< std::vector<double> > &oriVec){
+
   std::string line;
-  std::string nphot, opAng, wav;
-  bool pFound, aFound, wFound;
-  pFound = aFound = wFound = false;
-  //Number of photons - initial source intensity
-  while(std::getline(file, line)){
-    if (line.find("/mygen/injector_nPhotons") == std::string::npos) continue;
-    else{
-      nphot = line.substr(line.find("nPhotons") + 9);
-      pFound = true;
-      if(verbose) std::cout << TAG << "NPhotons = " << nphot << std::endl;
-      break;
-    }
-  }
+  std::vector<double> tmp(3);
+  while(std::getline(posFile, line)){
 
-  //Opening angle
-  file.clear();
-  file.seekg(0);
-  while(std::getline(file, line)){
-    if (line.find("/mygen/injector_opening_angle") == std::string::npos) continue;
-    else{
-      opAng = line.substr(line.find("opening_angle") + 14);
-      aFound = true;
-      if(verbose) std::cout << TAG << "Opening angle = " << opAng << std::endl;
-      break;
-    }
-  }
+    std::stringstream line_stream(line);
+    std::string entry;
+    std::vector<std::string> entries;
+    char delim = ' ';
 
-  //Wavelength
-  file.clear();
-  file.seekg(0);
-  while(std::getline(file, line)){
-    if (line.find("/mygen/injector_wavelength") == std::string::npos) continue;
-    else{
-      wav = line.substr(line.find("wavelength") + 11);
-      wFound = true;
-      if(verbose) std::cout << TAG << "Wavelength = " << wav << std::endl;
-      break;
-    }
-  }
-  
-  if(!pFound) std::cout << WAR << "Number of photons information missing from .mac file!" << std::endl;
-  else p[0] = std::stod(nphot);
-  if(!aFound) std::cout << WAR << "Opening angle information missing from .mac file!" << std::endl;
-  else p[1] = std::stod(opAng);
-  if(!wFound) std::cout << WAR << "Wavelength information missing from .mac file!" << std::endl;
-  else p[2] = std::stod(wav);  
+    while(std::getline(line_stream, entry, delim))
+      entries.push_back(entry);
+
+    //Add the x,y,z coordinates to the vector
+    for(int i=0; i<3; i++)
+      tmp[i] = std::stod(entries[i+1]);
+
+    posVec.push_back(tmp);
+    
+  }//end of loop over file lines
+
+  //Do the same thing for orientation
+  while(std::getline(oriFile, line)){
+
+    std::stringstream line_stream(line);
+    std::string entry;
+    std::vector<std::string> entries;
+    char delim = ' ';
+
+    while(std::getline(line_stream, entry, delim))
+      entries.push_back(entry);
+
+    //Add the x,y,z coordinates to the vector
+    for(int i=0; i<3; i++)
+      tmp[i] = std::stod(entries[i+1]);
+
+    oriVec.push_back(tmp);
+    
+  }//end of loop over file lines
+
+  //Sanity check
+  if(posVec.size() != oriVec.size())
+    std::cout << WAR << "PMT position and orientation vectors are different sizes! Something has gone wrong." << std::endl;
+
+  return;
 
 }
+
 
 //This is a simple approximation
 double GetSolidAngle(double r, double R){
@@ -511,15 +458,18 @@ double GetSolidAngle(double r, double R){
 
 }
 
+
 void SendHelp(){
 
   std::cout << TAG << "Script to read WCSim output and extract PMT hit info.\n"
-	    << "USAGE: TreeConverter -i [input file] -m [macro file]\n"
+	    << "USAGE: TreeConverter -i [input file] -b [injector] -c/d\n"
 	    << "OPTIONS:\n"
 	    << "-i : Input file\n"
 	    << "-o : Output file\n"
-	    << "-m : Macro file from simulation\n"
-	    << "-b : Use B&L PMTs only\n"
+	    << "-b : Injector [pass as B{number}]\n"
+	    << "-c : Collimator\n"
+	    << "-d : Diffuser\n"
+	    << "-d : Run on real data\n"
 	    << "-v : Print debug info\n"
 	    << "-h : Display this message\n";
 
