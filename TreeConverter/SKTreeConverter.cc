@@ -291,7 +291,7 @@ int main(int argc, char *argv[]){
     printf("%s%i B&L PMTs.\n", TAG.c_str(), nPMTs);
   }
 
-  pmtRadius = 50.; //Hardcode, probably need a more precise value
+  pmtRadius = 25.; //Hardcode, probably need a more precise value
   
   double PMTpos[3], vOrient[3], vDir[3];
   double vecNorm, orientNorm, localx, localy;
