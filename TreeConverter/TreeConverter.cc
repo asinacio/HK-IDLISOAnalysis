@@ -505,9 +505,9 @@ void ParseMacro(std::ifstream &file, double p[]){
 }
 
 //This is a simple approximation
-double GetSolidAngle(double r, double R){
+double GetSolidAngle(double r, double R){//radius, distance
 
-  return TMath::Pi()*r*r/(R*R);
+  return 2*TMath::Pi()*(1-sqrt(R*R-r*r)/R);
 
 }
 
