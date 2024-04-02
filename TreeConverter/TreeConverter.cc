@@ -118,7 +118,7 @@ int main(int argc, char *argv[]){
   std::cout << TAG << "Parsing input macro file: " << macroFileName << std::endl;
   double params[3] = {-1., -1., -1}; //Nphotons, opening angle, wavelength
   ParseMacro(macroFile, params);
-  int nPhotons = (int)params[0];
+  double nPhotons = params[0];
   double opAng = params[1];
   wavelength = params[2];
 
