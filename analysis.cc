@@ -72,6 +72,9 @@ void runFit(){
   tsource->SetBranchAddress("opAng", &sourceAng);   // Source opening angle
   tsource->SetBranchAddress("vg", &groupVel);       // Photon group velocity [nm s-1]
 
+  //Access the single event
+  tsource->GetEntry(0);
+
   // Loading PMT information
   cout << "Loading PMT data..." << endl;
   double dist, xpos, ypos, zpos, costh, cosths, phis, omega, rad, eff;
@@ -137,7 +140,7 @@ void runFit(){
   // Basic Chi2 fit
   // Scanning extinction lengths that minimize Chi2
   double minExL = 0.0;
-  double maxExL = 1000.0; // in cm (?)
+  double maxExL = 10000.0; // in cm (?)
   double bestChi2 = 10e30; // start with absurdly large value for the best Chi2
   double bestExL = 0.0;
   for( int i = minExL; i < maxExL; i++ ){
