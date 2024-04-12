@@ -32,7 +32,3 @@ void DataPMT::ClearPMT(){
   SetPMTTime_ToFCorr( -99999.9 );
 
 }
-
-void DataPMT::FillPMTData(){
-
-}

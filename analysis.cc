@@ -1,6 +1,7 @@
 // Code for a simple chi2 fit to calibration data to extract extinction lengths
 // Note by ASInacio: for development, I am used to compiling the codes using ROOT
-// Commands: root -> .L analysis.cc+ -> main()
+// Commands: root -> .L analysis.cc+ -> runFit()
+// Now this requires compiling src/DataPMT.cc and src/DataRunInfo.cc in this order, before compiling this code
 // This can be improved in the future
 
 #include <iostream>
@@ -11,6 +12,9 @@
 #include "TFile.h"
 #include "TTree.h"
 #include "TH1.h"
+
+#include "src/DataPMT.hh"
+#include "src/DataRunInfo.hh"
 
 using namespace std;
 
@@ -30,7 +34,7 @@ double CalcChi2( std::vector<double> wnpe, std::vector<double> d, double intensi
 
 }
 
-void runFit(){
+void runFit( std::string inFileName ){
 
   cout << "\n";
   cout << "###########################" << endl;
@@ -38,9 +42,23 @@ void runFit(){
   cout << "###########################" << endl;
   cout << "\n";
 
+  DataRunInfo *data = new DataRunInfo();
+
+  data->FillRunInfo( inFileName );
+  data->FillPMTInfo( inFileName );
+  data->FillmPMTInfo( inFileName );
+
+  // Prints for debugging
+  cout << data->GetLambda() << "  " << data->GetNPhotons() << endl;
+
+  map< Int_t, DataPMT >::iterator iLP;
+  for ( iLP = data->GetPMTIterBegin(); iLP != data->GetPMTIterEnd(); iLP++ ){
+    cout << iLP->first << "  " << ( iLP->second ).GetPMTID() << "  " << ( iLP->second ).GetPMTSourceDist() << "  " << endl;
+    // "first" accesses the first element of the map, which is the int of the PMT ID. "second" accesses the PMT object for that ID
+  }
+
+  /*
   // Open and read data files
-  //**********************NOTE: modify to have filename as argument
-  std::string inFileName = "output.root";
   TFile *inFile = new TFile( inFileName.c_str(), "read" );
 
   // If files does not exist, print a message and exit
@@ -50,8 +68,9 @@ void runFit(){
   }
 
   cout << "Reading file " << inFileName << "..." << endl;
-  // inFile->ls(); // print file structure, for debugging
+  inFile->ls(); // print file structure, for debugging*/
 
+  /*
   // Loading the ttrees
   TTree *tsource = (TTree*)inFile->Get("source");
   TTree *tpmt_geom = (TTree*)inFile->Get("pmt_geom");
@@ -111,7 +130,7 @@ void runFit(){
 
   // After loading the data, probably want to apply PMT selection cuts
   // For example to exclude PMTs offline, with bad timing/electronics calibration, etc
-  cout << "Applying PMT selection cuts..." << endl;
+  /*  cout << "Applying PMT selection cuts..." << endl;
 
   // Fit Model: NPE = I0 * Omega * A(theta) * exp( -d/L_alpha )
   // With I0 being the diffuser intensity entering the detector
@@ -151,8 +170,8 @@ void runFit(){
       }
   }
 
-  cout << "The best fit extinction length is " << bestExL << endl;
+  cout << "The best fit extinction length is " << bestExL << endl;*/
   
-  inFile->Close();
+  // inFile->Close();
 
 }
