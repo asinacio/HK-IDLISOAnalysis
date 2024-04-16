@@ -34,7 +34,9 @@ double CalcChi2( std::vector<double> wnpe, std::vector<double> d, double intensi
 
 }
 
-void runFit( std::string inFileName ){
+
+int main(int argc, char* argv[]){
+>>>>>>> First working version using CMake. Commit before I start changing file structure and inevitably break things
 
   cout << "\n";
   cout << "###########################" << endl;
@@ -151,7 +153,7 @@ void runFit( std::string inFileName ){
     double npe = nPE;
     tpmt_geom->GetEntry(i);
     npe = npe / omega;
-
+    
     wNPE.push_back(npe);
     d.push_back(dist);
   }
@@ -173,5 +175,7 @@ void runFit( std::string inFileName ){
   cout << "The best fit extinction length is " << bestExL << endl;*/
   
   // inFile->Close();
+
+  return 0;
 
 }

@@ -7,3 +7,6 @@
 
 *.root
 *~
+
+# Ignore build directory
+build/
