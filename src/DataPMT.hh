@@ -43,9 +43,6 @@ public:
   // to non-physical values before assigning them.
   void ClearPMT();
 
-  // Add information to this PMTData object
-  void FillPMTData();
-
   /////////////////////////////////
   ////////     GETTERS     ////////
   /////////////////////////////////

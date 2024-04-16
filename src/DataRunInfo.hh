@@ -19,25 +19,28 @@
 ///
 ////////////////////////////////////////////////////////////////////
 
-// NOTE by A.S.I: Will potentially want to include a map of PMT objects that correspond to this run. Look at the way it is done in the SNO+ OCA code
-
 #ifndef _DataRunInfo_
 #define _DataRunInfo_
+
+#include "DataPMT.hh"
 
 #include "TFile.h"
 #include "TTree.h"
 #include "TVector3.h"
 
+#include <map>
+
 using namespace std;
 
-class DataRunInfo{
+class DataRunInfo : public TObject{
   
 public:
 
   // The constructors and destructor for the DataRunInfo object.
   DataRunInfo(){
     ClearRun();
-    //fRunPMTs.clear();
+    fDataPMTs.clear();
+    fDatamPMTs.clear();
   }
   ~DataRunInfo(){ }
 
@@ -52,6 +55,18 @@ public:
   // Fill Run information from a TreeConverter file
   // into the run information stored here.
   void FillRunInfo( const string runFileName );
+
+  // Fill PMT information for this run object.
+  void FillPMTInfo( const string runFileName );
+
+  // Fill mPMT information for this run object.
+  void FillmPMTInfo( const string runFileName );
+
+  // Get a PMT by PMT ID.
+  DataPMT& GetPMT( const Int_t iPMT );
+
+  // Get a PMT by PMT ID.
+  DataPMT& GetmPMT( const Int_t imPMT );
 
   /////////////////////////////////
   ////////     GETTERS     ////////
@@ -71,6 +86,16 @@ public:
 
   // Get the injector opening angle.
   Double_t GetOpAng() const { return fOpAng; }
+
+  // Return the iterators corresponding to the beginning 
+  // and end of the PMT map.
+  map<Int_t, DataPMT>::iterator GetPMTIterBegin() { return fDataPMTs.begin(); }
+  map<Int_t, DataPMT>::iterator GetPMTIterEnd() { return fDataPMTs.end(); }
+
+  // Return the iterators corresponding to the beginning 
+  // and end of the mPMT map.
+  map<Int_t, DataPMT>::iterator GetmPMTIterBegin() { return fDatamPMTs.begin(); }
+  map<Int_t, DataPMT>::iterator GetmPMTIterEnd() { return fDatamPMTs.end(); }
     
   /////////////////////////////////
   ////////     SETTERS     ////////
@@ -105,8 +130,8 @@ private:
   Double_t fGroupVel;         // The photon group velocity
   Double_t fNPhotons;         // The number of initial photons
   Double_t fOpAng;            // The source opening angle
-  
-  //RunPMT Object
+  map<Int_t, DataPMT> fDataPMTs; // Map of PMTs in this DataRun object
+  map<Int_t, DataPMT> fDatamPMTs; // Map of mPMTs in this DataRun object
 
   ClassDef(DataRunInfo,1)
     
