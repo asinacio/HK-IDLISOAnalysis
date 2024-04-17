@@ -13,8 +13,8 @@
 #include "TTree.h"
 #include "TH1.h"
 
-#include "src/DataPMT.hh"
-#include "src/DataRunInfo.hh"
+#include "DataPMT.hh"
+#include "DataRunInfo.hh"
 
 using namespace std;
 
@@ -35,14 +35,16 @@ double CalcChi2( std::vector<double> wnpe, std::vector<double> d, double intensi
 }
 
 
-//int main(int argc, char* argv[]){
-void runFit( std::string inFileName ){
+int main(int argc, char* argv[]){
 
   cout << "\n";
   cout << "###########################" << endl;
   cout << "###### HK Optics Fit ######" << endl;
   cout << "###########################" << endl;
   cout << "\n";
+
+  //Hardcode this as a test
+  std::string inFileName = "/user/sjenkins/HyperK/HK-IDLISOAnalysis/inputs/output.root";
 
   DataRunInfo *data = new DataRunInfo();
 
