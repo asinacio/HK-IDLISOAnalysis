@@ -1,0 +1,1 @@
+Directory intended for placing files used by the fitter

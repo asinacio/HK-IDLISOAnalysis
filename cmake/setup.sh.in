@@ -84,6 +84,11 @@ fi
 
 
 export OPTICALANALYSIS=@CMAKE_INSTALL_PREFIX@
+export ANAUP=@CMAKE_SOURCE_DIR@
+echo "OPTICALANALYSIS variable set to $OPTICALANALYSIS"
+echo "ANAUP variable set to $ANAUP"
 
 add_to_PATH "${OPTICALANALYSIS}/bin"
 add_to_LD_LIBRARY_PATH "${OPTICALANALYSIS}/lib"
+
+echo "Exectuable(s) added to path."
