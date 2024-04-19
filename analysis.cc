@@ -34,9 +34,9 @@ double CalcChi2( std::vector<double> wnpe, std::vector<double> d, double intensi
 
 }
 
-
-//int main(int argc, char* argv[]){
 void runFit( std::string inFileName ){
+//Below is used for compilation with CMake
+//int main(int argc, char* argv[]){
 
   cout << "\n";
   cout << "###########################" << endl;

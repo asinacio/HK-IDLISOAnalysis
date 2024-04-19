@@ -34,7 +34,6 @@ HK-IDLISOAnalysis is now ready to use!
 
 To run:
 ```
-
 TreeConverter -i [inputfile.root] -o [outputfile.root] -m [macro.mac]
 ```
 Possible arguments:

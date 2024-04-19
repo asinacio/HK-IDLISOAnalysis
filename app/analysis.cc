@@ -1,11 +1,8 @@
 // Code for a simple chi2 fit to calibration data to extract extinction lengths
-// Note by ASInacio: for development, I am used to compiling the codes using ROOT
-// Commands: root -> .L analysis.cc+ -> runFit()
-// Now this requires compiling src/DataPMT.cc and src/DataRunInfo.cc in this order, before compiling this code
-// This can be improved in the future
 
 #include <iostream>
 #include <fstream>
+#include <cstdlib>
 #include <stdio.h>
 #include <string.h>
 
@@ -43,8 +40,30 @@ int main(int argc, char* argv[]){
   cout << "###########################" << endl;
   cout << "\n";
 
-  //Hardcode this as a test
-  std::string inFileName = "/user/sjenkins/HyperK/HK-IDLISOAnalysis/inputs/output.root";
+  
+  //Command line argument - right now just for input file
+  char *inFileCh = NULL;
+  int opt;
+  while((opt = getopt(argc, argv, ":i:")) != -1){
+    switch(opt){
+    case 'i':
+      inFileCh = optarg;
+      break;
+    case ':':
+      printf("Option -%c requires argument.\n", optopt);
+      printf("Pass -h for help.\n");
+      return 0;
+    default:
+      return 0;
+    }
+  }
+  if(inFileCh == NULL){
+    std::cout << "No input file found. Exiting.." << std::endl;
+    return -1;
+  }
+  //Search for file in the /inputs directory
+  std::string inFileName = std::getenv("ANAUP") + std::string("/inputs/") + std::string(inFileCh);
+  std::cout << inFileName << std::endl;
 
   DataRunInfo *data = new DataRunInfo();
 
