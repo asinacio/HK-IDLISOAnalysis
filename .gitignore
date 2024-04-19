@@ -7,3 +7,7 @@
 
 *.root
 *~
+setup.sh
+
+# Ignore build directory
+build/
