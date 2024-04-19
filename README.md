@@ -46,3 +46,10 @@ Possible arguments:
 
 Only `-i` and `-m` are actually required for the converter to run, everything else will take default values.
 
+## opticalAnalysis
+
+To run:
+```
+opticalAnalysis -i [inputfile.root]
+```
+`analysis.cc` is currently configured such that this will look in the `/inputs` directory. Path passed via `-i` should be relative to this.
