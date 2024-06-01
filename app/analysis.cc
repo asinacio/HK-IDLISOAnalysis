@@ -10,6 +10,8 @@
 #include "TTree.h"
 #include "TH1.h"
 
+#include "toml/toml_helper.h"
+
 #include "DataPMT.hh"
 #include "DataRunInfo.hh"
 
@@ -41,13 +43,12 @@ int main(int argc, char* argv[]){
   cout << "\n";
 
   
-  //Command line argument - right now just for input file
-  char *inFileCh = NULL;
+  char *toml = NULL;
   int opt;
-  while((opt = getopt(argc, argv, ":i:")) != -1){
+  while((opt = getopt(argc, argv, ":t:")) != -1){
     switch(opt){
-    case 'i':
-      inFileCh = optarg;
+    case 't':
+      toml = optarg;
       break;
     case ':':
       printf("Option -%c requires argument.\n", optopt);
@@ -57,12 +58,17 @@ int main(int argc, char* argv[]){
       return 0;
     }
   }
-  if(inFileCh == NULL){
-    std::cout << "No input file found. Exiting.." << std::endl;
+  if(toml == NULL){
+    std::cout << "Config file required. Exiting.." << std::endl;
     return -1;
   }
   //Search for file in the /inputs directory
-  std::string inFileName = std::getenv("ANAUP") + std::string("/inputs/") + std::string(inFileCh);
+  std::string tomlFile = toml;
+  const toml::value config = toml::parse(tomlFile);
+
+  const auto inFile = toml::find<std::string>(config, "input");
+
+  std::string inFileName = std::getenv("ANAUP") + std::string("/inputs/") + std::string(inFile);
   std::cout << inFileName << std::endl;
 
   DataRunInfo *data = new DataRunInfo();

@@ -1,0 +1,8 @@
+# Example config file in toml format
+# See https://toml.io/en/v1.0.0 for
+# a useful guide on toml syntax
+
+# Input root file
+# Remember opticalAnalysis will look in /inputs
+# so we go relative to that
+input = "output.root"

@@ -26,3 +26,5 @@ install(TARGETS G__HKIDLISOAnalysis DESTINATION lib/)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/libHK-IDLISOAnalysis_rdict.pcm
 	      ${CMAKE_CURRENT_BINARY_DIR}/libHK-IDLISOAnalysis.rootmap
 	      DESTINATION lib/)
+
+install(DIRECTORY toml DESTINATION include/)
