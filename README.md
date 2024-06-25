@@ -50,6 +50,5 @@ Only `-i` and `-m` are actually required for the converter to run, everything el
 
 To run:
 ```
-opticalAnalysis -i [inputfile.root]
+opticalAnalysis -t [config.toml]
 ```
-`analysis.cc` is currently configured such that this will look in the `/inputs` directory. Path passed via `-i` should be relative to this.

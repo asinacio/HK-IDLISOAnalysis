@@ -10,8 +10,14 @@
 #include "TTree.h"
 #include "TH1.h"
 
+#include "toml/toml_helper.h"
+
 #include "DataPMT.hh"
 #include "DataRunInfo.hh"
+
+const std::string TAG = "[opticalAnalysis]: ";
+const std::string ERR = "[ERROR]: ";
+const std::string WAR = "[WARNING]: ";
 
 using namespace std;
 
@@ -31,6 +37,7 @@ double CalcChi2( std::vector<double> wnpe, std::vector<double> d, double intensi
 
 }
 
+void SendHelp();
 
 int main(int argc, char* argv[]){
 
@@ -41,29 +48,46 @@ int main(int argc, char* argv[]){
   cout << "\n";
 
   
-  //Command line argument - right now just for input file
-  char *inFileCh = NULL;
+  char *toml = NULL;
   int opt;
-  while((opt = getopt(argc, argv, ":i:")) != -1){
+  while((opt = getopt(argc, argv, ":t:h")) != -1){
     switch(opt){
-    case 'i':
-      inFileCh = optarg;
+    case 't':
+      toml = optarg;
       break;
-    case ':':
-      printf("Option -%c requires argument.\n", optopt);
-      printf("Pass -h for help.\n");
+    case '?':
+      printf("%sUnknown option: -%c\n", WAR.c_str(), optopt);
+      printf("%sPass -h for help.\n", WAR.c_str());
       return 0;
+    case ':':
+      printf("%sOption -%c requires argument.\n", WAR.c_str(), optopt);
+      printf("%sPass -h for help.\n", WAR.c_str());
+      return 0;
+    case 'h':
+      SendHelp();
     default:
       return 0;
     }
   }
-  if(inFileCh == NULL){
-    std::cout << "No input file found. Exiting.." << std::endl;
+  if(toml == NULL){
+    std::cout << ERR << "Config file required. Exiting.." << std::endl;
     return -1;
   }
   //Search for file in the /inputs directory
-  std::string inFileName = std::getenv("ANAUP") + std::string("/inputs/") + std::string(inFileCh);
-  std::cout << inFileName << std::endl;
+  std::string tomlFile = toml;
+  ifstream tomlStream(tomlFile.c_str());
+  if(!tomlStream.good()){
+    std::cout << ERR << "Cannot find config file: " << tomlFile << std::endl;
+    std::cout << ERR << "Check the file path. Exiting.." << std::endl;
+    return -1;
+  }
+    
+  const toml::value config = toml::parse(tomlFile);
+
+  const auto inFile = toml::find<std::string>(config, "input");
+
+  std::string inFileName = std::getenv("ANAUP") + std::string("/inputs/") + std::string(inFile);
+  std::cout << TAG << "Reading input file: " << inFileName << std::endl;
 
   DataRunInfo *data = new DataRunInfo();
 
@@ -198,5 +222,15 @@ int main(int argc, char* argv[]){
   // inFile->Close();
 
   return 0;
+
+}
+
+void SendHelp(){
+
+  std::cout << TAG << "Main analysis program.\n"
+	    << "USAGE: opticalAnalysis -t [config toml]\n"
+	    << "OPTIONS:\n"
+	    << "-t : Config file\n"
+	    << "-h : Display this message\n";
 
 }
