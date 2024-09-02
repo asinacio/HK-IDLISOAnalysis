@@ -153,7 +153,7 @@ private:
   Int_t fPMTID;                // PMT ID
   Int_t fPMTType;              // The PMT type (1 = normal, 2 = mPMT)
   Int_t fPMTOn;                // PMT status (0 = off, 1 = on) - can add extra status tags if needed
-  TVector3 fPMTPos;            // PMT Position
+  TVector3 fPMTPos;            // PMT Position (coordinates in cm)
   Double_t fPMTSourceDist;     // Distance to PMT from source
   Double_t fPMTCosTh;          // PMT theta relative to source
   Double_t fPMTPhi;            // PMT phi relative to source

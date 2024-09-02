@@ -31,7 +31,7 @@ void DataRunInfo::ClearRun(){
 void DataRunInfo::FillRunInfo( const string runFileName ){
 
   // Open the input file and retrieve run info from tree
-  TFile *inFile = new TFile( runFileName.c_str(), "read" );
+  TFile *inFile = new TFile( runFileName.c_str() );
 
   // If files does not exist, print a message and exit
   if( !inFile || inFile->IsZombie() ){
@@ -46,7 +46,7 @@ void DataRunInfo::FillRunInfo( const string runFileName ){
 
   // Loading information about the source and laser
   cout << "Loading calibration source information..." << endl;
-  Double_t sourcePosx, sourcePosy, sourcePosz, sourceWl, sourceI, sourceAng, groupVel;
+  double sourcePosx, sourcePosy, sourcePosz, sourceWl, sourceI, sourceAng, groupVel;
   tsource->SetBranchAddress("vtx_x", &sourcePosx);  // Source x coordinate
   tsource->SetBranchAddress("vtx_y", &sourcePosy);  // Source y coordinate
   tsource->SetBranchAddress("vtx_z", &sourcePosz);  // Source z coordinate
@@ -54,6 +54,8 @@ void DataRunInfo::FillRunInfo( const string runFileName ){
   tsource->SetBranchAddress("nPhotons", &sourceI);  // Source intensity, number of photons
   tsource->SetBranchAddress("opAng", &sourceAng);   // Source opening angle
   tsource->SetBranchAddress("vg", &groupVel);       // Photon group velocity (nm s-1)
+
+  tsource->GetEntry(0);
 
   SetSourcePos( sourcePosx, sourcePosy, sourcePosz );
   SetLambda( sourceWl );

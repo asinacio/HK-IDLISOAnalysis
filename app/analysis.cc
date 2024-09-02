@@ -1,5 +1,3 @@
-// Code for a simple chi2 fit to calibration data to extract extinction lengths
-
 #include <iostream>
 #include <fstream>
 #include <cstdlib>
@@ -9,6 +7,8 @@
 #include "TFile.h"
 #include "TTree.h"
 #include "TH1.h"
+#include "TH2.h"
+#include "TGraph2D.h"
 
 #include "toml/toml_helper.h"
 
@@ -95,85 +95,66 @@ int main(int argc, char* argv[]){
   data->FillPMTInfo( inFileName );
   data->FillmPMTInfo( inFileName );
 
-  // Prints for debugging
-  cout << data->GetLambda() << "  " << data->GetNPhotons() << endl;
+  // Create data quality plots, save to output file
+  TH1 *hHits = new TH1F("hHits","Integrated Hits",100, 0.0, 1000.0);
+  TH1 *hPE = new TH1F("hPE","Integrated Photoelectrons",100, 0.0, 100.0);
+  TH1 *htime = new TH1F("htime","Time",100, -100.0, 2000.0);
+  TH1 *htimeToFCorrected = new TH1F("htimeToFCorrected","Time ToF corrected",100, -100.0, 2000.0);
 
-  map< Int_t, DataPMT >::iterator iLP;
-  for ( iLP = data->GetPMTIterBegin(); iLP != data->GetPMTIterEnd(); iLP++ ){
-    cout << iLP->first << "  " << ( iLP->second ).GetPMTID() << "  " << ( iLP->second ).GetPMTSourceDist() << "  " << endl;
-    // "first" accesses the first element of the map, which is the int of the PMT ID. "second" accesses the PMT object for that ID
+  TH2 *nHitsvsSourceDist = new TH2F("nHitsvsSourceDist","Hits vs distance to source",100,0.0,1000.0,100,0.0,8000.0);
+  TH2 *nHitsvsSourceCos = new TH2F("nHitsvsSourceCos","Hits vs cosTheta relative to source",100,0.0,1000.0,100,-1.0,1.0);
+  TH2 *nHitsvsSourcePhi = new TH2F("nHitsvsSourcePhi","Hits vs phi relative to source",100,0.0,1000.0,100,-180.0,180.0);
+  
+  TGraph2D *goccupancyMap = new TGraph2D;
+
+  int counter = 0;
+  map<Int_t, DataPMT>::iterator iPMT;
+  for( iPMT = data->GetPMTIterBegin(); iPMT != data->GetPMTIterEnd(); iPMT++ ){
+
+    // Only fill plots for normal PMTs (type 1)
+    if( data->GetPMT(iPMT->first).GetPMTType() != 1 ) continue;
+    
+    hHits->Fill( data->GetPMT(iPMT->first).GetPMTnHits() );
+    hPE->Fill( data->GetPMT(iPMT->first).GetPMTnPE() );
+    htime->Fill( data->GetPMT(iPMT->first).GetPMTTime() );
+    htimeToFCorrected->Fill( data->GetPMT(iPMT->first).GetPMTTime_ToFCorr() );
+
+    nHitsvsSourceDist->Fill( data->GetPMT(iPMT->first).GetPMTnHits(), data->GetPMT(iPMT->first).GetPMTSourceDist() );
+    nHitsvsSourceCos->Fill( data->GetPMT(iPMT->first).GetPMTnHits(), data->GetPMT(iPMT->first).GetPMTCosTh() );
+    nHitsvsSourcePhi->Fill( data->GetPMT(iPMT->first).GetPMTnHits(), data->GetPMT(iPMT->first).GetPMTPhi()*180.0/TMath::Pi() );
+
+    // Project cylinder into 2D
+    TVector3 pos = data->GetPMT(iPMT->first).GetPMTPos();
+    double height = pos.Z();
+    double azimuth = pos.Phi()*180.0/TMath::Pi();
+    if( data->GetPMT(iPMT->first).GetPMTnHits() > 0  ){
+      goccupancyMap->SetPoint(counter,azimuth,height,data->GetPMT(iPMT->first).GetPMTnHits());
+      counter++;
+    }
+    
   }
+  goccupancyMap->SetMarkerStyle(21);
+  goccupancyMap->SetMarkerSize(0.5);
 
-  /*
-  // Open and read data files
-  TFile *inFile = new TFile( inFileName.c_str(), "read" );
-
-  // If files does not exist, print a message and exit
-  if( !inFile || inFile->IsZombie() ){
-    std::cerr << "Error opening file!" << endl;
-    exit(-1);
-  }
-
-  cout << "Reading file " << inFileName << "..." << endl;
-  inFile->ls(); // print file structure, for debugging*/
-
-  /*
-  // Loading the ttrees
-  TTree *tsource = (TTree*)inFile->Get("source");
-  TTree *tpmt_geom = (TTree*)inFile->Get("pmt_geom");
-  TTree *tmpmt_geom = (TTree*)inFile->Get("mpmt_geom");
-  TTree *tpmt_hits = (TTree*)inFile->Get("pmt_hits");
-  TTree *tmpmt_hits = (TTree*)inFile->Get("mpmt_hits");
-
-  // tpmt_hits->Print(); // print ttree structure, for debugging
-
-  // Loading information about the laser and fibre
-  cout << "Loading calibration source information..." << endl;
-  double sourcePosx, sourcePosy, sourcePosz, sourceWl, sourceI, sourceAng, groupVel;
-  tsource->SetBranchAddress("vtx_x", &sourcePosx);  // Source x coordinate
-  tsource->SetBranchAddress("vtx_y", &sourcePosy);  // Source y coordinate
-  tsource->SetBranchAddress("vtx_z", &sourcePosz);  // Source z coordinate
-  tsource->SetBranchAddress("lambda", &sourceWl);   // Source wavelength [nm]
-  tsource->SetBranchAddress("nPhotons", &sourceI);  // Source intensity, number of photons simulated
-  tsource->SetBranchAddress("opAng", &sourceAng);   // Source opening angle
-  tsource->SetBranchAddress("vg", &groupVel);       // Photon group velocity [nm s-1]
-
-  //Access the single event
-  tsource->GetEntry(0);
-
-  // Loading PMT information
-  cout << "Loading PMT data..." << endl;
-  double dist, xpos, ypos, zpos, costh, cosths, phis, omega, rad, eff;
-  int pmtID, mpmtID, isPMTOn;
-  tpmt_geom->SetBranchAddress("R", &dist);          // Distance to PMT from source
-  tpmt_geom->SetBranchAddress("x", &xpos);          // PMT x coordinate
-  tpmt_geom->SetBranchAddress("y", &ypos);          // PMT y coordinate
-  tpmt_geom->SetBranchAddress("z", &zpos);          // PMT z coordinate
-  tpmt_geom->SetBranchAddress("costh", &costh);     // Photon angle relative to PMT
-  tpmt_geom->SetBranchAddress("cosths", &cosths);   // PMT theta relative to source
-  tpmt_geom->SetBranchAddress("phis", &phis);       // PMT phi relative to source
-  tpmt_geom->SetBranchAddress("omega", &omega);     // Solid angle subtended
-  tpmt_geom->SetBranchAddress("radius", &rad);      // PMT radius
-  tpmt_geom->SetBranchAddress("eff", &eff);         // PMT efficiency
-  tpmt_geom->SetBranchAddress("pmtID", &pmtID);     // PMT ID (enum. from 0)
-  tpmt_geom->SetBranchAddress("isPMTOn", &isPMTOn); // PMT status (0 = off, 1 = on) - can add extra status tags if needed
-
-  double nHits, nPE, time_tofcorr, time;
-  tpmt_hits->SetBranchAddress("nHits", &nHits);
-  tpmt_hits->SetBranchAddress("nPE", &nPE);
-  tpmt_hits->SetBranchAddress("time", &time);
-  tpmt_hits->SetBranchAddress("time_tofcorr", &time_tofcorr);
-  tpmt_hits->SetBranchAddress("pmtID", &pmtID);
-
-  // For testing
-  /*cout << "Size tpmt_geom = " << tpmt_geom->GetEntries() << ", Size tpmt_hits = " << tpmt_geom->GetEntries() << endl;
-
-  TH1* h1 = new TH1I("h1", "h1 title", 100, 0.0, 4000.0);
-  for(int i = 0; i<tpmt_hits->GetEntries(); i++){
-    tpmt_hits->GetEntry(i);
-    h1->Fill(time);
-  }
-  h1->Draw();*/
+  std::string outrootFileName = "outputs/test.root";
+  TFile *outrootFile = new TFile();
+  outrootFile = TFile::Open(outrootFileName.c_str(), "RECREATE");
+  outrootFile->cd();
+  hHits->Write();
+  hPE->Write();
+  htime->Write();
+  htimeToFCorrected->Write();
+  nHitsvsSourceDist->Write();
+  nHitsvsSourceCos->Write();
+  nHitsvsSourcePhi->Write();
+  goccupancyMap->Write();
+  outrootFile->Close();
+  
+  delete outrootFile;
+  delete hHits;
+  delete hPE;
+  delete htime;
+  delete htimeToFCorrected;
 
   // After loading the data, probably want to apply PMT selection cuts
   // For example to exclude PMTs offline, with bad timing/electronics calibration, etc
