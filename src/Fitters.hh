@@ -1,36 +1,37 @@
 ////////////////////////////////////////////////////////////////////
 ///
-/// FILENAME: DataFilter.hh
+/// FILENAME: Fitters.hh
 ///
-/// CLASS: DataFilter
+/// CLASS: Fitters
 ///
-/// BRIEF: A class to apply selection cuts to the data
+/// BRIEF: A class which includes fitter methods for the analysis
 ///                
 /// AUTHOR: Ana Sofia Inacio <ana.carpinteiroinacio@physics.ox.ac.uk>
 ///
-/// DETAIL: 
+/// DETAIL: This can include different fit methods and minimizers to
+///         obtain the best fit parameters of the Optical Model
 ///
 ////////////////////////////////////////////////////////////////////
 
-#ifndef __DataFilter__
-#define __DataFilter__
+#ifndef __Fitters__
+#define __Fitters__
 
 #include "TObject.h"
 
 using namespace std;
 
-class DataFilter : public TObject{
+class Fitters : public TObject{
 
  public:
 
-  // The constructor and destructor for the DataFilter
-  DataFilter(){ }
-  ~DataFilter(){ }
+  // The constructor and destructor for DataFilter
+  Fitters(){ }
+  ~Fitters(){ }
 
   /////////////////////////////////
   ////////     METHODS     ////////
   /////////////////////////////////
-
+  
   /////////////////////////////////
   ////////     SETTERS     ////////
   /////////////////////////////////
@@ -41,8 +42,7 @@ class DataFilter : public TObject{
 
  private:
 
+  ClassDef(Fitters,1)
 
-  ClassDef(DataFilter,1)
-  
 };
 #endif

@@ -4,6 +4,7 @@ set(HEADERS
     DataReader.hh
     DataRunInfo.hh
     OpticalModel.hh
+    Fitters.hh
 )
 
 
@@ -13,6 +14,7 @@ add_library(HK-IDLISOAnalysis SHARED
     DataReader.cc  
     DataRunInfo.cc 
     OpticalModel.cc
+    Fitters.cc
 )
 
 

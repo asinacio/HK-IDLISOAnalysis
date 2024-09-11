@@ -16,15 +16,17 @@
 #ifndef __OpticalModel__
 #define __OpticalModel__
 
+#include "TObject.h"
+
 using namespace std;
 
-class OpticalModel{
+class OpticalModel : public TObject{
 
  public:
 
   // The constructor and destructor for DataFilter
-  OpticalModel();
-  ~OpticalModel(){};
+  OpticalModel(){ }
+  ~OpticalModel(){ }
 
   /////////////////////////////////
   ////////     METHODS     ////////
@@ -40,6 +42,7 @@ class OpticalModel{
 
  private:
 
-
+  ClassDef(OpticalModel,1)
+  
 };
 #endif

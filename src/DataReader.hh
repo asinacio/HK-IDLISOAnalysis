@@ -16,18 +16,19 @@
 #ifndef __DataReader__
 #define __DataReader__
 
+#include "TObject.h"
 #include "TFile.h"
 #include "TTree.h"
 
 using namespace std;
 
-class DataReader{
+class DataReader : public TObject{
 
  public:
 
   // The constructor and destructor for DataManager
-  DataReader();
-  ~DataReader(){};
+  DataReader(){ }
+  ~DataReader(){ }
 
   /////////////////////////////////
   ////////     METHODS     ////////
@@ -43,6 +44,7 @@ class DataReader{
 
  private:
 
-
+  ClassDef(DataReader,1)
+  
 };
 #endif
