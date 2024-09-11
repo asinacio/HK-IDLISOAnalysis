@@ -17,6 +17,7 @@
 #define __Fitters__
 
 #include "TObject.h"
+#include "TMinuit.h"
 
 using namespace std;
 
@@ -31,6 +32,18 @@ class Fitters : public TObject{
   /////////////////////////////////
   ////////     METHODS     ////////
   /////////////////////////////////
+
+  // Chi2 function
+  Double_t Chi2( std::vector<Double_t> wnpe, std::vector<Double_t> d, Double_t intensity, Double_t proposedExL );
+
+  // Log-likelihood function
+  Double_t logL();
+
+  // Minimiser: "Manual" Grid Search
+  void GridSearch();
+
+  // Minimiser: Minuit
+  void Minuit();
   
   /////////////////////////////////
   ////////     SETTERS     ////////
